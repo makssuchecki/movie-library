@@ -245,6 +245,44 @@ fn set_watched(state: State<'_, AppState>, folder_path: String, watched: bool) -
     db::set_watched(&state.db(), &folder_path, watched).map_err(err)
 }
 
+fn dir_size(path: &Path) -> u64 {
+    std::fs::read_dir(path)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| match e.metadata() {
+            Ok(m) if m.is_dir() => dir_size(&e.path()),
+            Ok(m) => m.len(),
+            Err(_) => 0,
+        })
+        .sum()
+}
+
+/// Usuwa folder filmu z dysku (domyślnie do Kosza). Zwraca liczbę usuniętych bajtów.
+/// Dozwolone są wyłącznie foldery z biblioteki będące bezpośrednimi podfolderami folderu z filmami.
+#[tauri::command]
+async fn delete_movie(state: State<'_, AppState>, folder_path: String, permanent: bool) -> Result<u64, String> {
+    let root = {
+        let conn = state.db();
+        db::file_path(&conn, &folder_path).map_err(err)?.ok_or("Nie znaleziono filmu w bibliotece")?;
+        db::get_setting(&conn, "library_path").ok_or("Nie wybrano folderu z filmami")?
+    };
+    let folder = std::fs::canonicalize(&folder_path).map_err(|e| format!("Folder nie istnieje: {e}"))?;
+    let root = std::fs::canonicalize(&root).map_err(err)?;
+    if folder.parent() != Some(root.as_path()) {
+        return Err("Odmowa: folder nie leży bezpośrednio w folderze z filmami".into());
+    }
+
+    let size = dir_size(&folder);
+    if permanent {
+        std::fs::remove_dir_all(&folder).map_err(|e| format!("Nie udało się usunąć folderu: {e}"))?;
+    } else {
+        trash::delete(&folder).map_err(|e| format!("Nie udało się przenieść do Kosza: {e}"))?;
+    }
+    db::delete_movie(&state.db(), &folder_path).map_err(err)?;
+    Ok(size)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -273,6 +311,7 @@ pub fn run() {
             set_match,
             play_movie,
             set_watched,
+            delete_movie,
         ])
         .run(tauri::generate_context!())
         .expect("błąd podczas uruchamiania aplikacji");

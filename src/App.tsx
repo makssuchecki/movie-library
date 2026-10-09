@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence } from "motion/react";
 import { FolderOpen } from "lucide-react";
 import { api, type LibraryItem, type Settings, type SyncProgress } from "./api";
-import { matchesQuery, titleOf } from "./format";
+import { formatSize, matchesQuery, titleOf } from "./format";
 import { Browse } from "./components/Browse";
 import { Header, type View } from "./components/Header";
 import { LibraryGrid } from "./components/LibraryGrid";
@@ -129,6 +129,25 @@ export default function App() {
     [reload, showToast],
   );
 
+  const deleteMovie = useCallback(
+    async (item: LibraryItem, permanent: boolean) => {
+      try {
+        const freed = await api.deleteMovie(item.folderPath, permanent);
+        setSelectedPath(null);
+        setRandomMode(false);
+        await reload();
+        showToast(
+          permanent
+            ? `Usunięto „${titleOf(item)}” — zwolniono ${formatSize(freed)}`
+            : `Przeniesiono „${titleOf(item)}” do Kosza (${formatSize(freed)})`,
+        );
+      } catch (err) {
+        showToast(String(err), "error");
+      }
+    },
+    [reload, showToast],
+  );
+
   const pickLibrary = async () => {
     if (!settings) return;
     const dir = await open({ directory: true });
@@ -206,6 +225,7 @@ export default function App() {
             onToggleWatched={toggleWatched}
             onFixMatch={(item) => setMatchPath(item.folderPath)}
             onReroll={randomMode ? pickRandom : undefined}
+            onDelete={deleteMovie}
           />
         )}
         {matchItem && (

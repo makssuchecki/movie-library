@@ -94,6 +94,9 @@ export const api = {
   setMatch: (folderPath: string, tmdbId: number) => invoke<void>("set_match", { folderPath, tmdbId }),
   playMovie: (folderPath: string) => invoke<void>("play_movie", { folderPath }),
   setWatched: (folderPath: string, watched: boolean) => invoke<void>("set_watched", { folderPath, watched }),
+  /** Zwraca liczbę usuniętych bajtów. */
+  deleteMovie: (folderPath: string, permanent: boolean) =>
+    invoke<number>("delete_movie", { folderPath, permanent }),
 };
 
 /** Lokalny plik obrazu (cache) -> URL możliwy do użycia w <img>. */

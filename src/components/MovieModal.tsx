@@ -1,4 +1,5 @@
-import { Check, FolderOpen, Play, Search, Shuffle, X, Clapperboard } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Clapperboard, FolderOpen, Play, Search, Shuffle, Trash, TriangleAlert, X } from "lucide-react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { localImage, type LibraryItem } from "../api";
 import { formatRuntime, formatSize, ratingOf, titleOf, yearOf } from "../format";
@@ -14,9 +15,20 @@ interface Props {
   onFixMatch: (item: LibraryItem) => void;
   /** Ustawione, gdy film został wylosowany — pokazuje przycisk „Losuj inny”. */
   onReroll?: () => void;
+  onDelete: (item: LibraryItem, permanent: boolean) => Promise<void>;
 }
 
-export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch, onReroll }: Props) {
+export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch, onReroll, onDelete }: Props) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [permanent, setPermanent] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Nowy film w oknie (np. po „Losuj inny”) — schowaj potwierdzenie usunięcia.
+  useEffect(() => {
+    setConfirmDelete(false);
+    setPermanent(false);
+  }, [item.folderPath]);
+
   const d = item.details;
   const backdrop = localImage(d?.backdropPath);
   const meta = [yearOf(item), formatRuntime(d?.runtime)].filter(Boolean);
@@ -156,7 +168,7 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch,
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line/60 bg-black/20 px-5 py-4 text-xs text-muted sm:px-8">
         <span className="selectable min-w-0 flex-1 truncate" title={item.filePath}>
-          {item.filePath} Â· {formatSize(item.fileSize)}
+          {item.filePath} · {formatSize(item.fileSize)}
         </span>
         <button
           type="button"
@@ -172,7 +184,68 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch,
         >
           <Search className="size-3.5" /> Popraw dopasowanie
         </button>
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          className="flex items-center gap-1.5 transition hover:text-red-400"
+        >
+          <Trash className="size-3.5" /> Usuń z dysku
+        </button>
       </div>
+
+      {confirmDelete && (
+        <div
+          ref={(el) => el?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+          className="border-t border-red-500/30 bg-red-950/40 px-5 py-5 sm:px-8"
+        >
+          <div className="flex gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-red-400" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">
+                Usunąć „{titleOf(item)}” z dysku? ({formatSize(item.fileSize)})
+              </p>
+              <p className="mt-1 text-sm text-fg/70">
+                {permanent
+                  ? "Cały folder filmu zostanie trwale usunięty. Tej operacji nie można cofnąć."
+                  : "Cały folder filmu zostanie przeniesiony do Kosza. Miejsce zwolni się po opróżnieniu Kosza."}
+              </p>
+              <label className="mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-fg/80">
+                <input
+                  type="checkbox"
+                  checked={permanent}
+                  onChange={(e) => setPermanent(e.target.checked)}
+                  className="accent-red-500"
+                />
+                Usuń trwale (z pominięciem Kosza)
+              </label>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    try {
+                      await onDelete(item, permanent);
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold transition hover:bg-red-500 disabled:opacity-60"
+                >
+                  {deleting ? "Usuwanie…" : permanent ? "Usuń trwale" : "Przenieś do Kosza"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-md px-4 py-2 text-sm text-fg/70 hover:text-fg"
+                >
+                  Anuluj
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

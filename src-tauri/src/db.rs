@@ -161,6 +161,11 @@ pub fn touch_played(conn: &Connection, folder_path: &str) -> rusqlite::Result<()
     Ok(())
 }
 
+pub fn delete_movie(conn: &Connection, folder_path: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM movies WHERE folder_path = ?1", [folder_path])?;
+    Ok(())
+}
+
 pub fn file_path(conn: &Connection, folder_path: &str) -> rusqlite::Result<Option<String>> {
     conn.query_row("SELECT file_path FROM movies WHERE folder_path = ?1", [folder_path], |r| r.get(0))
         .optional()
