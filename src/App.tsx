@@ -86,7 +86,23 @@ export default function App() {
   const matchItem = useMemo(() => items.find((i) => i.folderPath === matchPath) ?? null, [items, matchPath]);
   const searchResults = useMemo(() => items.filter((i) => matchesQuery(i, query)), [items, query]);
 
-  const openItem = useCallback((item: LibraryItem) => setSelectedPath(item.folderPath), []);
+  const [randomMode, setRandomMode] = useState(false);
+
+  const openItem = useCallback((item: LibraryItem) => {
+    setRandomMode(false);
+    setSelectedPath(item.folderPath);
+  }, []);
+
+  // Losuje spośród nieobejrzanych (gdy wszystkie obejrzane — z całej biblioteki), bez powtórzenia bieżącego.
+  const pickRandom = useCallback(() => {
+    const unwatched = items.filter((i) => !i.watched);
+    const pool = (unwatched.length ? unwatched : items).filter(
+      (i, _, all) => all.length === 1 || i.folderPath !== selectedPath,
+    );
+    if (!pool.length) return;
+    setRandomMode(true);
+    setSelectedPath(pool[Math.floor(Math.random() * pool.length)].folderPath);
+  }, [items, selectedPath]);
 
   const play = useCallback(
     async (item: LibraryItem) => {
@@ -133,6 +149,7 @@ export default function App() {
         onQueryChange={setQuery}
         busy={busy !== null}
         onRefresh={() => refresh(true)}
+        onRandom={pickRandom}
         onOpenSettings={() => setSettingsOpen(true)}
         showNav={hasLibrary}
       />
@@ -181,10 +198,14 @@ export default function App() {
           <MovieModal
             key="movie"
             item={selected}
-            onClose={() => setSelectedPath(null)}
+            onClose={() => {
+              setSelectedPath(null);
+              setRandomMode(false);
+            }}
             onPlay={play}
             onToggleWatched={toggleWatched}
             onFixMatch={(item) => setMatchPath(item.folderPath)}
+            onReroll={randomMode ? pickRandom : undefined}
           />
         )}
         {matchItem && (

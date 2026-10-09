@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Film, LoaderCircle, Search, X } from "lucide-react";
 import { api, type LibraryItem, type SearchCandidate } from "../api";
 import { Modal } from "./Modal";
@@ -61,7 +61,7 @@ export function MatchDialog({ item, onClose, onMatched, onError }: Props) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="TytuĹ‚"
+          placeholder="Tytuł"
           autoFocus
           className="min-w-0 flex-1 rounded-md border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent/60"
         />
@@ -82,7 +82,7 @@ export function MatchDialog({ item, onClose, onMatched, onError }: Props) {
       </form>
 
       <ul className="max-h-[60vh] space-y-1 overflow-y-auto px-3 py-4">
-        {results?.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted">Brak wynikĂłw.</li>}
+        {results?.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted">Brak wyników.</li>}
         {results?.map((c) => (
           <li key={c.tmdbId}>
             <button

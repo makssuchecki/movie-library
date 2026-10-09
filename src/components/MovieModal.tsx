@@ -1,4 +1,4 @@
-﻿import { Check, FolderOpen, Play, Search, X, Clapperboard } from "lucide-react";
+import { Check, FolderOpen, Play, Search, Shuffle, X, Clapperboard } from "lucide-react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { localImage, type LibraryItem } from "../api";
 import { formatRuntime, formatSize, ratingOf, titleOf, yearOf } from "../format";
@@ -12,9 +12,11 @@ interface Props {
   onPlay: (item: LibraryItem) => void;
   onToggleWatched: (item: LibraryItem) => void;
   onFixMatch: (item: LibraryItem) => void;
+  /** Ustawione, gdy film został wylosowany — pokazuje przycisk „Losuj inny”. */
+  onReroll?: () => void;
 }
 
-export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch }: Props) {
+export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch, onReroll }: Props) {
   const d = item.details;
   const backdrop = localImage(d?.backdropPath);
   const meta = [yearOf(item), formatRuntime(d?.runtime)].filter(Boolean);
@@ -46,10 +48,10 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch 
           )}
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg/80">
             <Rating value={ratingOf(item)} className="text-base" />
-            {d && d.voteCount > 0 && <span className="text-xs text-muted">({d.voteCount.toLocaleString("pl-PL")} gĹ‚osĂłw)</span>}
+            {d && d.voteCount > 0 && <span className="text-xs text-muted">({d.voteCount.toLocaleString("pl-PL")} głosów)</span>}
             {meta.map((m, i) => (
               <span key={i} className="flex items-center gap-3">
-                <span className="text-white/25">â€˘</span>
+                <span className="text-white/25">•</span>
                 {m}
               </span>
             ))}
@@ -61,7 +63,7 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch 
               onClick={() => onPlay(item)}
               className="flex items-center gap-2 rounded-md bg-white px-5 py-2 font-semibold text-black transition hover:bg-white/85"
             >
-              <Play className="size-4 fill-current" /> OdtwĂłrz
+              <Play className="size-4 fill-current" /> Odtwórz
             </button>
             <button
               type="button"
@@ -75,28 +77,37 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch 
             {d?.trailerKey && (
               <button
                 type="button"
-                onClick={() => openUrl(`https://www.Clapperboard.com/watch?v=${d.trailerKey}`)}
+                onClick={() => openUrl(`https://www.youtube.com/watch?v=${d.trailerKey}`)}
                 className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium transition hover:bg-white/15"
               >
                 <Clapperboard className="size-4" /> Zwiastun
               </button>
             )}
+            {onReroll && (
+              <button
+                type="button"
+                onClick={onReroll}
+                className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium transition hover:bg-white/15"
+              >
+                <Shuffle className="size-4" /> Losuj inny
+              </button>
+            )}
           </div>
 
-          {d?.tagline && <p className="mt-6 text-sm text-fg/60 italic">â€ž{d.tagline}â€ť</p>}
+          {d?.tagline && <p className="mt-6 text-sm text-fg/60 italic">„{d.tagline}”</p>}
           {d ? (
             <p className="selectable mt-3 max-w-3xl leading-relaxed text-fg/85">
               {d.overview || "Brak opisu."}
             </p>
           ) : (
             <div className="mt-6 rounded-lg border border-dashed border-line p-4 text-sm text-muted">
-              Nie znaleziono tego filmu w TMDB na podstawie nazwy folderu â€ž{item.folderName}â€ť.
+              Nie znaleziono tego filmu w TMDB na podstawie nazwy folderu „{item.folderName}”.
               <button
                 type="button"
                 onClick={() => onFixMatch(item)}
                 className="ml-1 font-medium text-accent hover:underline"
               >
-                Dopasuj rÄ™cznie
+                Dopasuj ręcznie
               </button>
             </div>
           )}
@@ -105,7 +116,7 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch 
             <dl className="mt-6 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
               {d.director && (
                 <>
-                  <dt className="text-muted">ReĹĽyseria</dt>
+                  <dt className="text-muted">Reżyseria</dt>
                   <dd>{d.director}</dd>
                 </>
               )}
@@ -152,7 +163,7 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch 
           onClick={() => revealItemInDir(item.filePath)}
           className="flex items-center gap-1.5 transition hover:text-fg"
         >
-          <FolderOpen className="size-3.5" /> PokaĹĽ w folderze
+          <FolderOpen className="size-3.5" /> Pokaż w folderze
         </button>
         <button
           type="button"

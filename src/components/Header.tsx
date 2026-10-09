@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Search, Settings, X } from "lucide-react";
+import { RefreshCw, Search, Settings, Shuffle, X } from "lucide-react";
 
 export type View = "browse" | "all";
 
@@ -10,6 +10,7 @@ interface Props {
   onQueryChange: (q: string) => void;
   busy: boolean;
   onRefresh: () => void;
+  onRandom: () => void;
   onOpenSettings: () => void;
   showNav: boolean;
 }
@@ -19,7 +20,17 @@ const tabs: { id: View; label: string }[] = [
   { id: "all", label: "Wszystkie" },
 ];
 
-export function Header({ view, onViewChange, query, onQueryChange, busy, onRefresh, onOpenSettings, showNav }: Props) {
+export function Header({
+  view,
+  onViewChange,
+  query,
+  onQueryChange,
+  busy,
+  onRefresh,
+  onRandom,
+  onOpenSettings,
+  showNav,
+}: Props) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -81,6 +92,17 @@ export function Header({ view, onViewChange, query, onQueryChange, busy, onRefre
                 </button>
               )}
             </div>
+          )}
+          {showNav && (
+            <button
+              type="button"
+              title="Wylosuj film"
+              onClick={onRandom}
+              className="flex h-9 items-center gap-2 rounded-full px-2.5 text-sm text-fg/70 transition hover:bg-white/10 hover:text-fg sm:px-3"
+            >
+              <Shuffle className="size-[18px]" />
+              <span className="hidden sm:inline">Losuj</span>
+            </button>
           )}
           {showNav && (
             <button
