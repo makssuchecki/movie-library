@@ -34,6 +34,14 @@ impl AppState {
         db::get_setting(&self.db(), "language").unwrap_or_else(|| DEFAULT_LANGUAGE.into())
     }
 
+    /// Wskazuje obraz w bieżącym folderze cache po nazwie pliku — zapisana ścieżka
+    /// może pochodzić ze starej lokalizacji danych (np. po zmianie identyfikatora aplikacji).
+    fn resolve_image(&self, stored: Option<String>) -> Option<String> {
+        let name = Path::new(stored.as_deref()?).file_name()?;
+        let path = self.images_dir.join(name);
+        path.exists().then(|| path.to_string_lossy().into_owned())
+    }
+
     fn tmdb(&self) -> Result<Tmdb, String> {
         let key = db::get_setting(&self.db(), "tmdb_api_key")
             .or_else(|| BUILTIN_API_KEY.map(str::to_owned))
@@ -192,7 +200,12 @@ async fn sync_one(state: &AppState, tmdb: &Tmdb, job: &db::SyncJob) -> Result<bo
 #[tauri::command]
 fn get_library(state: State<'_, AppState>) -> Result<Vec<LibraryItem>, String> {
     let language = state.language();
-    db::list_items(&state.db(), &language).map_err(err)
+    let mut items = db::list_items(&state.db(), &language).map_err(err)?;
+    for details in items.iter_mut().filter_map(|i| i.details.as_mut()) {
+        details.poster_path = state.resolve_image(details.poster_path.take());
+        details.backdrop_path = state.resolve_image(details.backdrop_path.take());
+    }
+    Ok(items)
 }
 
 #[tauri::command]
