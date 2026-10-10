@@ -62,7 +62,7 @@ export function Hero({ item, onOpen, onPlay }: Props) {
               onClick={() => onPlay(item)}
               className="flex items-center gap-2 rounded-md bg-white px-6 py-2.5 font-semibold text-black transition hover:bg-white/85"
             >
-              <Play className="size-5 fill-current" /> Odtwórz
+              <Play className="size-5 fill-current" /> {item.resumeMs ? "Wznów" : "Odtwórz"}
             </button>
             <button
               type="button"

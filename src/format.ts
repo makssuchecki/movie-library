@@ -24,6 +24,26 @@ export function formatSize(bytes: number) {
 
 export const formatRating = (r: number) => r.toFixed(1);
 
+/** Postęp oglądania 0–1, gdy jest zapamiętana pozycja. */
+export const progressOf = (item: LibraryItem) =>
+  item.resumeMs && item.durationMs ? Math.min(item.resumeMs / item.durationMs, 1) : null;
+
+/** 754000 -> "12:34", 5025000 -> "1:23:45" */
+export function formatTimestamp(ms: number) {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+/** Ile zostało do końca, np. "Zostało 52 min". */
+export function formatRemaining(item: LibraryItem) {
+  if (!item.resumeMs || !item.durationMs) return null;
+  const min = Math.max(1, Math.round((item.durationMs - item.resumeMs) / 60000));
+  return `Zostało ${formatRuntime(min)}`;
+}
+
 export function pluralFilms(n: number) {
   if (n === 1) return "film";
   const last = n % 10;

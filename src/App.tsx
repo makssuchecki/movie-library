@@ -65,6 +65,16 @@ export default function App() {
     };
   }, []);
 
+  // Śledzenie MPC-HC zapisało postęp lub oznaczyło film jako obejrzany.
+  useEffect(() => {
+    const unlisten = listen("library-changed", () => {
+      reload().catch(() => {});
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, [reload]);
+
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -105,9 +115,9 @@ export default function App() {
   }, [items, selectedPath]);
 
   const play = useCallback(
-    async (item: LibraryItem) => {
+    async (item: LibraryItem, fromStart = false) => {
       try {
-        await api.playMovie(item.folderPath);
+        await api.playMovie(item.folderPath, fromStart);
         showToast(`Odtwarzanie: ${titleOf(item)}`);
         await reload();
       } catch (err) {
@@ -121,6 +131,18 @@ export default function App() {
     async (item: LibraryItem) => {
       try {
         await api.setWatched(item.folderPath, !item.watched);
+        await reload();
+      } catch (err) {
+        showToast(String(err), "error");
+      }
+    },
+    [reload, showToast],
+  );
+
+  const removeFromHistory = useCallback(
+    async (item: LibraryItem) => {
+      try {
+        await api.clearHistory(item.folderPath);
         await reload();
       } catch (err) {
         showToast(String(err), "error");
@@ -206,7 +228,7 @@ export default function App() {
           (query ? (
             <LibraryGrid items={searchResults} heading={`Wyniki dla „${query}”`} onOpen={openItem} onPlay={play} />
           ) : view === "browse" ? (
-            <Browse items={items} onOpen={openItem} onPlay={play} />
+            <Browse items={items} onOpen={openItem} onPlay={play} onRemoveFromHistory={removeFromHistory} />
           ) : (
             <LibraryGrid items={items} heading="Wszystkie filmy" onOpen={openItem} onPlay={play} />
           ))}
@@ -247,6 +269,7 @@ export default function App() {
             settings={settings}
             onClose={() => setSettingsOpen(false)}
             onError={(m) => showToast(m, "error")}
+            onSettingsChange={setSettings}
             onSaved={(saved, needsRefresh) => {
               setSettings(saved);
               setSettingsOpen(false);

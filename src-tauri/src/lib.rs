@@ -3,6 +3,7 @@ mod models;
 mod player;
 mod scanner;
 mod tmdb;
+mod tracker;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,6 +24,7 @@ struct AppState {
     images_dir: PathBuf,
     http: reqwest::Client,
     syncing: AtomicBool,
+    tracking: AtomicBool,
 }
 
 impl AppState {
@@ -63,6 +65,9 @@ struct SettingsDto {
     detected_mpc_path: Option<String>,
     language: String,
     api_key_source: &'static str,
+    /// "enabled" | "exposed" (włączony, ale dostępny z sieci) | "disabled" | "unavailable"
+    /// — interfejs WWW MPC-HC do śledzenia postępu.
+    mpc_tracking: &'static str,
 }
 
 #[derive(Deserialize)]
@@ -115,7 +120,19 @@ fn get_settings(state: State<'_, AppState>) -> SettingsDto {
         detected_mpc_path: player::detect_mpc(),
         language: db::get_setting(&conn, "language").unwrap_or_else(|| DEFAULT_LANGUAGE.into()),
         api_key_source,
+        mpc_tracking: match player::web_interface() {
+            Some(w) if w.enabled && w.localhost_only => "enabled",
+            Some(w) if w.enabled => "exposed",
+            Some(_) => "disabled",
+            None => "unavailable",
+        },
     }
+}
+
+#[tauri::command]
+fn enable_mpc_tracking(state: State<'_, AppState>) -> Result<SettingsDto, String> {
+    player::enable_web_interface()?;
+    Ok(get_settings(state))
 }
 
 #[tauri::command]
@@ -226,8 +243,9 @@ async fn set_match(state: State<'_, AppState>, folder_path: String, tmdb_id: i64
     db::set_match(&conn, &folder_path, tmdb_id, "manual").map_err(err)
 }
 
+/// Odtwarza film w MPC-HC — od zapisanej pozycji, chyba że `from_start`.
 #[tauri::command]
-fn play_movie(state: State<'_, AppState>, folder_path: String) -> Result<(), String> {
+fn play_movie(app: AppHandle, state: State<'_, AppState>, folder_path: String, from_start: bool) -> Result<(), String> {
     let conn = state.db();
     let file = db::file_path(&conn, &folder_path)
         .map_err(err)?
@@ -236,8 +254,24 @@ fn play_movie(state: State<'_, AppState>, folder_path: String) -> Result<(), Str
         .filter(|p| Path::new(p).exists())
         .or_else(player::detect_mpc)
         .ok_or("Nie znaleziono Media Player Classic — wskaż plik mpc-hc w ustawieniach")?;
-    player::play(&player, &file)?;
-    db::touch_played(&conn, &folder_path).map_err(err)
+    let start_ms = if from_start {
+        db::clear_resume(&conn, &folder_path).map_err(err)?;
+        None
+    } else {
+        db::resume_position(&conn, &folder_path).map_err(err)?
+    };
+    player::play(&player, &file, start_ms)?;
+    db::touch_played(&conn, &folder_path).map_err(err)?;
+
+    if let Some(web) = player::web_interface().filter(|w| w.enabled) {
+        tracker::ensure_running(&app, web.port);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_history(state: State<'_, AppState>, folder_path: String) -> Result<(), String> {
+    db::clear_history(&state.db(), &folder_path).map_err(err)
 }
 
 #[tauri::command]
@@ -298,6 +332,7 @@ pub fn run() {
                 images_dir,
                 http: reqwest::Client::builder().user_agent("Kinoteka/0.1").build()?,
                 syncing: AtomicBool::new(false),
+                tracking: AtomicBool::new(false),
             });
             Ok(())
         })
@@ -312,6 +347,8 @@ pub fn run() {
             play_movie,
             set_watched,
             delete_movie,
+            clear_history,
+            enable_mpc_tracking,
         ])
         .run(tauri::generate_context!())
         .expect("błąd podczas uruchamiania aplikacji");

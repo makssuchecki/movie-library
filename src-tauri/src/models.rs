@@ -43,6 +43,9 @@ pub struct LibraryItem {
     pub added_at: i64,
     pub watched: bool,
     pub last_played: Option<i64>,
+    /// Pozycja wznowienia i długość filmu (ms) odczytane z MPC-HC.
+    pub resume_ms: Option<i64>,
+    pub duration_ms: Option<i64>,
     pub details: Option<MovieDetails>,
 }
 

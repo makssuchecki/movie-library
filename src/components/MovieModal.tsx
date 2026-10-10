@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Check, Clapperboard, FolderOpen, Play, Search, Shuffle, Trash, TriangleAlert, X } from "lucide-react";
+import { Check, Clapperboard, FolderOpen, Play, RotateCcw, Search, Shuffle, Trash, TriangleAlert, X } from "lucide-react";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { localImage, type LibraryItem } from "../api";
-import { formatRuntime, formatSize, ratingOf, titleOf, yearOf } from "../format";
+import { formatRemaining, formatRuntime, formatSize, formatTimestamp, progressOf, ratingOf, titleOf, yearOf } from "../format";
 import { Modal } from "./Modal";
 import { Poster } from "./Poster";
 import { Rating } from "./Rating";
@@ -10,7 +10,7 @@ import { Rating } from "./Rating";
 interface Props {
   item: LibraryItem;
   onClose: () => void;
-  onPlay: (item: LibraryItem) => void;
+  onPlay: (item: LibraryItem, fromStart?: boolean) => void;
   onToggleWatched: (item: LibraryItem) => void;
   onFixMatch: (item: LibraryItem) => void;
   /** Ustawione, gdy film został wylosowany — pokazuje przycisk „Losuj inny”. */
@@ -32,6 +32,7 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch,
   const d = item.details;
   const backdrop = localImage(d?.backdropPath);
   const meta = [yearOf(item), formatRuntime(d?.runtime)].filter(Boolean);
+  const progress = progressOf(item);
 
   return (
     <Modal onClose={onClose}>
@@ -69,14 +70,33 @@ export function MovieModal({ item, onClose, onPlay, onToggleWatched, onFixMatch,
             ))}
           </div>
 
+          {progress != null && item.resumeMs && (
+            <div className="mt-5 flex max-w-sm items-center gap-3 text-xs text-muted">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/15">
+                <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
+              </div>
+              <span className="shrink-0 tabular-nums">{formatRemaining(item)}</span>
+            </div>
+          )}
+
           <div className="mt-5 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => onPlay(item)}
               className="flex items-center gap-2 rounded-md bg-white px-5 py-2 font-semibold text-black transition hover:bg-white/85"
             >
-              <Play className="size-4 fill-current" /> Odtwórz
+              <Play className="size-4 fill-current" />
+              {item.resumeMs ? `Wznów od ${formatTimestamp(item.resumeMs)}` : "Odtwórz"}
             </button>
+            {item.resumeMs != null && (
+              <button
+                type="button"
+                onClick={() => onPlay(item, true)}
+                className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium transition hover:bg-white/15"
+              >
+                <RotateCcw className="size-4" /> Od początku
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onToggleWatched(item)}

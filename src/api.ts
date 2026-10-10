@@ -37,6 +37,9 @@ export interface LibraryItem {
   addedAt: number;
   watched: boolean;
   lastPlayed: number | null;
+  /** Pozycja wznowienia i długość filmu w ms (z MPC-HC). */
+  resumeMs: number | null;
+  durationMs: number | null;
   details: MovieDetails | null;
 }
 
@@ -46,6 +49,7 @@ export interface Settings {
   detectedMpcPath: string | null;
   language: string;
   apiKeySource: "custom" | "builtin" | "none";
+  mpcTracking: "enabled" | "exposed" | "disabled" | "unavailable";
 }
 
 export interface SettingsInput {
@@ -92,7 +96,9 @@ export const api = {
   searchTmdb: (query: string, year: number | null) =>
     invoke<SearchCandidate[]>("search_tmdb", { query, year }),
   setMatch: (folderPath: string, tmdbId: number) => invoke<void>("set_match", { folderPath, tmdbId }),
-  playMovie: (folderPath: string) => invoke<void>("play_movie", { folderPath }),
+  playMovie: (folderPath: string, fromStart = false) => invoke<void>("play_movie", { folderPath, fromStart }),
+  clearHistory: (folderPath: string) => invoke<void>("clear_history", { folderPath }),
+  enableMpcTracking: () => invoke<Settings>("enable_mpc_tracking"),
   setWatched: (folderPath: string, watched: boolean) => invoke<void>("set_watched", { folderPath, watched }),
   /** Zwraca liczbę usuniętych bajtów. */
   deleteMovie: (folderPath: string, permanent: boolean) =>

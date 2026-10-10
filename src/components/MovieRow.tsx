@@ -8,9 +8,11 @@ interface Props {
   items: LibraryItem[];
   onOpen: (item: LibraryItem) => void;
   onPlay: (item: LibraryItem) => void;
+  onRemove?: (item: LibraryItem) => void;
+  removeLabel?: string;
 }
 
-export function MovieRow({ title, items, onOpen, onPlay }: Props) {
+export function MovieRow({ title, items, onOpen, onPlay, onRemove, removeLabel }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   if (items.length === 0) return null;
 
@@ -32,6 +34,8 @@ export function MovieRow({ title, items, onOpen, onPlay }: Props) {
             item={item}
             onOpen={onOpen}
             onPlay={onPlay}
+            onRemove={onRemove}
+            removeLabel={removeLabel}
             className="w-32 shrink-0 snap-start sm:w-40 lg:w-44 2xl:w-52"
           />
         ))}

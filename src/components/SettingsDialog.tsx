@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Folder, X } from "lucide-react";
+import { Check, Folder, TriangleAlert, X } from "lucide-react";
 import { api, type Settings } from "../api";
 import { Modal } from "./Modal";
 
@@ -9,6 +9,8 @@ interface Props {
   settings: Settings;
   onClose: () => void;
   onSaved: (settings: Settings, needsRefresh: boolean) => void;
+  /** Zmiana stanu bez zamykania okna (np. włączenie śledzenia MPC-HC). */
+  onSettingsChange: (settings: Settings) => void;
   onError: (message: string) => void;
 }
 
@@ -25,12 +27,24 @@ function Field({ label, hint, children }: { label: string; hint?: ReactNode; chi
   );
 }
 
-export function SettingsDialog({ settings, onClose, onSaved, onError }: Props) {
+export function SettingsDialog({ settings, onClose, onSaved, onSettingsChange, onError }: Props) {
   const [libraryPath, setLibraryPath] = useState(settings.libraryPath ?? "");
   const [mpcPath, setMpcPath] = useState(settings.mpcPath ?? "");
   const [language, setLanguage] = useState(settings.language);
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [enablingTracking, setEnablingTracking] = useState(false);
+
+  const enableTracking = async () => {
+    setEnablingTracking(true);
+    try {
+      onSettingsChange(await api.enableMpcTracking());
+    } catch (err) {
+      onError(String(err));
+    } finally {
+      setEnablingTracking(false);
+    }
+  };
 
   const pickLibrary = async () => {
     const dir = await open({ directory: true, defaultPath: libraryPath || undefined });
@@ -116,6 +130,41 @@ export function SettingsDialog({ settings, onClose, onSaved, onError }: Props) {
               </button>
             </div>
           </Field>
+
+          <div>
+            <span className="mb-1.5 block text-sm font-medium">Zapamiętywanie miejsca w filmie</span>
+            {settings.mpcTracking === "enabled" ? (
+              <p className="flex items-start gap-2 text-xs text-muted">
+                <Check className="size-4 shrink-0 text-accent" />
+                Włączone. Podczas oglądania Kinoteka zapisuje pozycję co kilka sekund i wznawia od niej film. Filmy obejrzane
+                do końca są oznaczane automatycznie. Działa, gdy Kinoteka jest otwarta w trakcie seansu.
+              </p>
+            ) : settings.mpcTracking === "unavailable" ? (
+              <p className="text-xs text-muted">Nie znaleziono ustawień MPC-HC — uruchom raz Media Player Classic.</p>
+            ) : (
+              <div className="rounded-md border border-line bg-surface-2/60 p-3 text-xs text-muted">
+                {settings.mpcTracking === "exposed" ? (
+                  <p className="flex items-start gap-2 text-amber-300/90">
+                    <TriangleAlert className="size-4 shrink-0" />
+                    Interfejs WWW MPC-HC jest dostępny z całej sieci lokalnej. Ogranicz go do tego komputera.
+                  </p>
+                ) : (
+                  <p>
+                    Wymaga włączenia interfejsu WWW w MPC-HC (tylko dla tego komputera). Zamknij Media Player Classic przed
+                    włączeniem.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={enableTracking}
+                  disabled={enablingTracking}
+                  className="mt-3 rounded-md bg-white/10 px-3 py-1.5 text-sm text-fg hover:bg-white/15 disabled:opacity-60"
+                >
+                  {settings.mpcTracking === "exposed" ? "Ogranicz do tego komputera" : "Włącz"}
+                </button>
+              </div>
+            )}
+          </div>
 
           <Field label="Język opisów">
             <select value={language} onChange={(e) => setLanguage(e.target.value)} className={`${inputClass} w-full`}>

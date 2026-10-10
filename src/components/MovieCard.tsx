@@ -1,6 +1,6 @@
-import { Check, Play } from "lucide-react";
+import { Check, Play, X } from "lucide-react";
 import type { LibraryItem } from "../api";
-import { ratingOf, titleOf, yearOf } from "../format";
+import { progressOf, ratingOf, titleOf, yearOf } from "../format";
 import { Poster } from "./Poster";
 import { Rating } from "./Rating";
 
@@ -8,10 +8,14 @@ interface Props {
   item: LibraryItem;
   onOpen: (item: LibraryItem) => void;
   onPlay: (item: LibraryItem) => void;
+  /** Gdy ustawione — przycisk ✕ (np. usunięcie z „Ostatnio odtwarzanych”). */
+  onRemove?: (item: LibraryItem) => void;
+  removeLabel?: string;
   className?: string;
 }
 
-export function MovieCard({ item, onOpen, onPlay, className = "" }: Props) {
+export function MovieCard({ item, onOpen, onPlay, onRemove, removeLabel, className = "" }: Props) {
+  const progress = progressOf(item);
   return (
     <div className={`group relative ${className}`}>
       <button
@@ -38,6 +42,11 @@ export function MovieCard({ item, onOpen, onPlay, className = "" }: Props) {
             <Check className="size-3.5" strokeWidth={3} />
           </span>
         )}
+        {progress != null && (
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+            <div className="h-full bg-accent" style={{ width: `${progress * 100}%` }} />
+          </div>
+        )}
         {item.matchStatus === "unmatched" && (
           <span className="absolute top-2 left-2 rounded bg-red-500/80 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
             Brak danych
@@ -53,6 +62,18 @@ export function MovieCard({ item, onOpen, onPlay, className = "" }: Props) {
       >
         <Play className="ml-0.5 size-5 fill-current" />
       </button>
+
+      {onRemove && (
+        <button
+          type="button"
+          title={removeLabel}
+          aria-label={removeLabel}
+          onClick={() => onRemove(item)}
+          className="absolute top-2 left-2 grid size-7 place-items-center rounded-full bg-black/70 text-white/80 opacity-0 backdrop-blur transition group-hover:opacity-100 hover:bg-black/90 hover:text-white"
+        >
+          <X className="size-4" />
+        </button>
+      )}
 
       <div className="mt-2 px-0.5">
         <p className="truncate text-sm font-medium text-fg/90">{titleOf(item)}</p>

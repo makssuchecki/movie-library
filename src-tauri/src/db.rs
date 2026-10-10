@@ -49,7 +49,72 @@ fn now() -> i64 {
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
     conn.execute_batch(SCHEMA)?;
+    migrate(&conn)?;
     Ok(conn)
+}
+
+/// Dodaje kolumny wprowadzone po pierwszej wersji schematu.
+fn migrate(conn: &Connection) -> rusqlite::Result<()> {
+    let columns: HashSet<String> = {
+        let mut stmt = conn.prepare("SELECT name FROM pragma_table_info('movies')")?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect::<Result<_, _>>()?
+    };
+    for (name, ty) in [("resume_ms", "INTEGER"), ("duration_ms", "INTEGER")] {
+        if !columns.contains(name) {
+            conn.execute_batch(&format!("ALTER TABLE movies ADD COLUMN {name} {ty}"))?;
+        }
+    }
+    Ok(())
+}
+
+/// Odsetek filmu, po którym uznajemy go za obejrzany (napisy końcowe).
+const FINISHED_RATIO: f64 = 0.92;
+/// Pozycje z pierwszej minuty nie są zapamiętywane — to wciąż „początek”.
+const MIN_RESUME_MS: i64 = 60_000;
+
+/// Zapisuje postęp odtwarzania pliku z biblioteki. Zwraca `true`, gdy coś się zmieniło.
+pub fn record_progress(conn: &Connection, file_path: &str, position_ms: i64, duration_ms: i64) -> rusqlite::Result<bool> {
+    if duration_ms <= 0 {
+        return Ok(false);
+    }
+    let finished = position_ms as f64 / duration_ms as f64 >= FINISHED_RATIO;
+    let changed = if finished {
+        conn.execute(
+            "UPDATE movies SET watched = 1, resume_ms = NULL, duration_ms = ?2
+             WHERE file_path = ?1 COLLATE NOCASE AND (watched = 0 OR resume_ms IS NOT NULL)",
+            params![file_path, duration_ms],
+        )?
+    } else if position_ms >= MIN_RESUME_MS {
+        conn.execute(
+            "UPDATE movies SET resume_ms = ?2, duration_ms = ?3
+             WHERE file_path = ?1 COLLATE NOCASE AND resume_ms IS NOT ?2",
+            params![file_path, position_ms, duration_ms],
+        )?
+    } else {
+        0
+    };
+    Ok(changed > 0)
+}
+
+pub fn resume_position(conn: &Connection, folder_path: &str) -> rusqlite::Result<Option<i64>> {
+    conn.query_row("SELECT resume_ms FROM movies WHERE folder_path = ?1", [folder_path], |r| r.get(0))
+        .optional()
+        .map(Option::flatten)
+}
+
+pub fn clear_resume(conn: &Connection, folder_path: &str) -> rusqlite::Result<()> {
+    conn.execute("UPDATE movies SET resume_ms = NULL WHERE folder_path = ?1", [folder_path])?;
+    Ok(())
+}
+
+/// Usuwa film z „Ostatnio odtwarzanych” (razem z zapamiętaną pozycją).
+pub fn clear_history(conn: &Connection, folder_path: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE movies SET last_played = NULL, resume_ms = NULL WHERE folder_path = ?1",
+        [folder_path],
+    )?;
+    Ok(())
 }
 
 pub fn get_setting(conn: &Connection, key: &str) -> Option<String> {
@@ -152,7 +217,11 @@ pub fn mark_unmatched(conn: &Connection, folder_path: &str) -> rusqlite::Result<
 }
 
 pub fn set_watched(conn: &Connection, folder_path: &str, watched: bool) -> rusqlite::Result<()> {
-    conn.execute("UPDATE movies SET watched = ?2 WHERE folder_path = ?1", params![folder_path, watched])?;
+    // Oznaczenie jako obejrzany kasuje pozycję wznowienia.
+    conn.execute(
+        "UPDATE movies SET watched = ?2, resume_ms = CASE WHEN ?2 THEN NULL ELSE resume_ms END WHERE folder_path = ?1",
+        params![folder_path, watched],
+    )?;
     Ok(())
 }
 
@@ -174,13 +243,13 @@ pub fn file_path(conn: &Connection, folder_path: &str) -> rusqlite::Result<Optio
 pub fn list_items(conn: &Connection, language: &str) -> rusqlite::Result<Vec<LibraryItem>> {
     let mut stmt = conn.prepare(
         "SELECT m.folder_path, m.folder_name, m.file_path, m.file_size, m.parsed_title, m.parsed_year,
-                m.match_status, m.added_at, m.watched, m.last_played, d.data
+                m.match_status, m.added_at, m.watched, m.last_played, m.resume_ms, m.duration_ms, d.data
          FROM movies m
          LEFT JOIN tmdb_details d ON d.tmdb_id = m.tmdb_id AND d.language = ?1
          ORDER BY m.parsed_title COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([language], |r| {
-        let data: Option<String> = r.get(10)?;
+        let data: Option<String> = r.get(12)?;
         Ok(LibraryItem {
             folder_path: r.get(0)?,
             folder_name: r.get(1)?,
@@ -192,6 +261,8 @@ pub fn list_items(conn: &Connection, language: &str) -> rusqlite::Result<Vec<Lib
             added_at: r.get(7)?,
             watched: r.get(8)?,
             last_played: r.get(9)?,
+            resume_ms: r.get(10)?,
+            duration_ms: r.get(11)?,
             details: data.and_then(|d| serde_json::from_str(&d).ok()),
         })
     })?;

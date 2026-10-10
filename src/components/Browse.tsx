@@ -8,11 +8,12 @@ interface Props {
   items: LibraryItem[];
   onOpen: (item: LibraryItem) => void;
   onPlay: (item: LibraryItem) => void;
+  onRemoveFromHistory: (item: LibraryItem) => void;
 }
 
 const MIN_GENRE_ROW = 2;
 
-export function Browse({ items, onOpen, onPlay }: Props) {
+export function Browse({ items, onOpen, onPlay, onRemoveFromHistory }: Props) {
   // Losowy film na banerze — wybierany raz na sesję, preferuje nieobejrzane z tłem.
   const [seed] = useState(() => Math.random());
   const featured = useMemo(() => {
@@ -36,6 +37,7 @@ export function Browse({ items, onOpen, onPlay }: Props) {
       {
         title: "Ostatnio odtwarzane",
         items: items.filter((i) => i.lastPlayed).sort((a, b) => b.lastPlayed! - a.lastPlayed!).slice(0, 20),
+        removable: true,
       },
       { title: "Ostatnio dodane", items: [...items].sort((a, b) => b.addedAt - a.addedAt).slice(0, 20) },
       { title: "Nieobejrzane", items: items.filter((i) => !i.watched) },
@@ -53,7 +55,15 @@ export function Browse({ items, onOpen, onPlay }: Props) {
       {featured ? <Hero item={featured} onOpen={onOpen} onPlay={onPlay} /> : <div className="h-24" />}
       <div className={`relative space-y-8 ${featured ? "-mt-10 sm:-mt-16" : ""}`}>
         {rows.map((row) => (
-          <MovieRow key={row.title} title={row.title} items={row.items} onOpen={onOpen} onPlay={onPlay} />
+          <MovieRow
+            key={row.title}
+            title={row.title}
+            items={row.items}
+            onOpen={onOpen}
+            onPlay={onPlay}
+            onRemove={"removable" in row ? onRemoveFromHistory : undefined}
+            removeLabel="Usuń z ostatnio odtwarzanych"
+          />
         ))}
       </div>
     </div>
